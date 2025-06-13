@@ -12,11 +12,10 @@ import (
 )
 
 var RootCmd = &cobra.Command{
-	Use:   "alist",
+	Use:   "openlist",
 	Short: "A file list program that supports multiple storage.",
 	Long: `A file list program that supports multiple storage,
-built with love by Xhofe and friends in Go/Solid.js.
-Complete documentation is available at https://alist.nn.ci/`,
+built with love by Xhofe and friends in Go/Solid.js.`,
 }
 
 func Execute() {
