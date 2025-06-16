@@ -23,10 +23,6 @@ env:
   IMAGE_PUSH: ${{ github.event_name == 'push' }}
   IMAGE_IS_PROD: ${{ github.ref_type == 'tag' }}
   IMAGE_TAGS_BETA: |
-    type=schedule
-    type=ref,event=branch
-    type=ref,event=tag
-    type=ref,event=pr
     type=raw,value=beta,enable={{is_default_branch}}
 
 jobs:
@@ -113,6 +109,13 @@ jobs:
           logout: true
           username: ${{ env.REGISTRY_USERNAME }}
           password: ${{ env.REGISTRY_PASSWORD }}
+
+      - name: Login to DockerHub Container Registry
+        if: env.IMAGE_PUSH == 'true'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ env.ORG_NAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Docker meta
         id: meta
