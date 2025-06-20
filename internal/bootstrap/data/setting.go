@@ -104,8 +104,8 @@ func InitialSettings() []model.SettingItem {
 		{Key: conf.AllowMounted, Value: "true", Type: conf.TypeBool, Group: model.SITE},
 		{Key: conf.RobotsTxt, Value: "User-agent: *\nAllow: /", Type: conf.TypeText, Group: model.SITE},
 		// style settings
-		{Key: conf.Logo, Value: "https://cdn.oplist.org/gh/OpenListTeam/Logo@main/OpenList.svg", Type: conf.TypeText, Group: model.STYLE},
-		{Key: conf.Favicon, Value: "https://cdn.oplist.org/gh/OpenListTeam/Logo@main/OpenList.svg", Type: conf.TypeString, Group: model.STYLE},
+		{Key: conf.Logo, Value: "https://cdn.oplist.org/gh/OpenListTeam/Logo@main/logo.svg", Type: conf.TypeText, Group: model.STYLE},
+		{Key: conf.Favicon, Value: "https://cdn.oplist.org/gh/OpenListTeam/Logo@main/logo.svg", Type: conf.TypeString, Group: model.STYLE},
 		{Key: conf.MainColor, Value: "#1890ff", Type: conf.TypeString, Group: model.STYLE},
 		{Key: "home_icon", Value: "🏠", Type: conf.TypeString, Group: model.STYLE},
 		{Key: "home_container", Value: "max_980px", Type: conf.TypeSelect, Options: "max_980px,hope_container", Group: model.STYLE},
@@ -120,17 +120,17 @@ func InitialSettings() []model.SettingItem {
 		{Key: conf.ProxyIgnoreHeaders, Value: "authorization,referer", Type: conf.TypeText, Group: model.PREVIEW, Flag: model.PRIVATE},
 		{Key: "external_previews", Value: `{}`, Type: conf.TypeText, Group: model.PREVIEW},
 		{Key: "iframe_previews", Value: `{
-			"doc,docx,xls,xlsx,ppt,pptx": {
-				"Microsoft":"https://view.officeapps.live.com/op/view.aspx?src=$e_url",
-				"Google":"https://docs.google.com/gview?url=$e_url&embedded=true"
-			},
-			"pdf": {
-				"PDF.js":https://mozilla.github.io/pdf.js/web/viewer.html?url=$e_url" 
-			},
-			// "epub": {
-			// 	"EPUB.js":"https://alist-org.github.io/static/epub.js/viewer.html?url=$e_url"
-			// }
-		}`, Type: conf.TypeText, Group: model.PREVIEW},
+	"doc,docx,xls,xlsx,ppt,pptx": {
+		"Microsoft":"https://view.officeapps.live.com/op/view.aspx?src=$e_url",
+		"Google":"https://docs.google.com/gview?url=$e_url&embedded=true"
+	},
+	"pdf": {
+		"PDF.js":"//res.oplist.org/pdf.js/web/viewer.html?url=$e_url"
+	},
+	"epub": {
+		"EPUB.js":"//res.oplist.org/epub.js/viewer.html?url=$e_url"
+	}
+}`, Type: conf.TypeText, Group: model.PREVIEW},
 		//		{Key: conf.OfficeViewers, Value: `{
 		//	"Microsoft":"https://view.officeapps.live.com/op/view.aspx?src=$url",
 		//	"Google":"https://docs.google.com/gview?url=$url&embedded=true",
@@ -138,7 +138,7 @@ func InitialSettings() []model.SettingItem {
 		//		{Key: conf.PdfViewers, Value: `{
 		//	"pdf.js":"https://alist-org.github.io/pdf.js/web/viewer.html?file=$url"
 		//}`, Type: conf.TypeText, Group: model.PREVIEW},
-		{Key: "audio_cover", Value: "https://cdn.oplist.org/gh/OpenListTeam/Logo@main/OpenList.svg", Type: conf.TypeString, Group: model.PREVIEW},
+		{Key: "audio_cover", Value: "https://cdn.oplist.org/gh/OpenListTeam/Logo@main/logo.svg", Type: conf.TypeString, Group: model.PREVIEW},
 		{Key: conf.AudioAutoplay, Value: "true", Type: conf.TypeBool, Group: model.PREVIEW},
 		{Key: conf.VideoAutoplay, Value: "true", Type: conf.TypeBool, Group: model.PREVIEW},
 		{Key: conf.PreviewArchivesByDefault, Value: "true", Type: conf.TypeBool, Group: model.PREVIEW},
