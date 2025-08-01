@@ -119,7 +119,7 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.REGISTRY }}
-          标签: ${{ env.IMAGE_IS_PROD == 'true' && '' || env.IMAGE_TAGS_BETA }}
+          tags: ${{ env.IMAGE_IS_PROD == 'true' && '' || env.IMAGE_TAGS_BETA }}
           flavor: |
             ${{ env.IMAGE_IS_PROD == 'true' && 'latest=true' || '' }}
             ${{ matrix.tag_favor }}
