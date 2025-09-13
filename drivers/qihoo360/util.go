@@ -3,12 +3,14 @@ package qihoo360
 import (
 	"bytes"
 	"context"
+	"crypto/md5"
 	"encoding/json"
 	"fmt"
 	"io"
 	"mime/multipart"
 	"net/http"
 	"net/url"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -17,17 +19,48 @@ import (
 )
 
 const (
-	BaseURL = "https://mcp.yunpan.com/api"
+	// 360 AI云盘开放平台 API 地址
+	BaseURL = "https://openapi.yunpan.360.cn/v2/openapi/entry"
 	UserAgent = "yunpan_mcp_server"
 	
-	// File categories for search
-	FileCategoryAll    = -1
-	FileCategoryOther  = 0
-	FileCategoryImage  = 1
-	FileCategoryDoc    = 2
-	FileCategoryMusic  = 3
-	FileCategoryVideo  = 4
+	// 文件类别定义
+	FileCategoryAll    = -1  // 全部
+	FileCategoryOther  = 0   // 其他
+	FileCategoryImage  = 1   // 图片
+	FileCategoryDoc    = 2   // 文档 
+	FileCategoryMusic  = 3   // 音乐
+	FileCategoryVideo  = 4   // 视频
 )
+
+// generateSign 生成API请求签名
+func (d *Qihoo360) generateSign(params map[string]string) string {
+	// 按照官方文档要求生成签名
+	// 1. 将参数按key排序
+	var keys []string
+	for k := range params {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	
+	// 2. 构建签名字符串
+	var signStr strings.Builder
+	for _, k := range keys {
+		if k != "sign" && params[k] != "" {
+			signStr.WriteString(k)
+			signStr.WriteString("=")
+			signStr.WriteString(params[k])
+			signStr.WriteString("&")
+		}
+	}
+	
+	// 3. 添加API密钥
+	signStr.WriteString("secret=" + d.APIKey)
+	
+	// 4. 计算MD5
+	h := md5.New()
+	h.Write([]byte(signStr.String()))
+	return fmt.Sprintf("%x", h.Sum(nil))
+}
 
 // buildClient creates HTTP client with proper headers
 func (d *Qihoo360) buildClient() *http.Client {
@@ -37,50 +70,37 @@ func (d *Qihoo360) buildClient() *http.Client {
 	return client
 }
 
-// request makes HTTP request with authentication
-func (d *Qihoo360) request(ctx context.Context, method, endpoint string, body interface{}, headers map[string]string) (*http.Response, error) {
+// request 发起API请求
+func (d *Qihoo360) request(ctx context.Context, method string, params map[string]string) (*http.Response, error) {
 	client := d.buildClient()
 	
-	var bodyReader io.Reader
-	if body != nil {
-		jsonBody, err := json.Marshal(body)
-		if err != nil {
-			return nil, fmt.Errorf("marshal request body: %w", err)
-		}
-		bodyReader = bytes.NewReader(jsonBody)
+	// 添加基本参数
+	params["method"] = method
+	params["access_token"] = d.APIKey
+	
+	// 生成签名
+	params["sign"] = d.generateSign(params)
+	
+	// 构建请求体
+	formData := url.Values{}
+	for k, v := range params {
+		formData.Add(k, v)
 	}
 	
-	req, err := http.NewRequestWithContext(ctx, method, BaseURL+endpoint, bodyReader)
+	req, err := http.NewRequestWithContext(ctx, "POST", BaseURL, strings.NewReader(formData.Encode()))
 	if err != nil {
 		return nil, fmt.Errorf("create request: %w", err)
 	}
 	
-	// Set default headers
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("User-Agent", UserAgent)
-	req.Header.Set("Authorization", "Bearer "+d.APIKey)
-	if body != nil {
-		req.Header.Set("Content-Type", "application/json")
-	}
-	
-	// Set custom headers
-	for k, v := range headers {
-		req.Header.Set(k, v)
-	}
 	
 	return client.Do(req)
 }
 
-// getJSON makes GET request and decode JSON response
-func (d *Qihoo360) getJSON(ctx context.Context, endpoint string, params map[string]string, result interface{}) error {
-	if params != nil && len(params) > 0 {
-		values := url.Values{}
-		for k, v := range params {
-			values.Add(k, v)
-		}
-		endpoint += "?" + values.Encode()
-	}
-	
-	resp, err := d.request(ctx, "GET", endpoint, nil, nil)
+// apiCall 调用API并解析响应
+func (d *Qihoo360) apiCall(ctx context.Context, method string, params map[string]string, result interface{}) error {
+	resp, err := d.request(ctx, method, params)
 	if err != nil {
 		return fmt.Errorf("request failed: %w", err)
 	}
@@ -102,31 +122,7 @@ func (d *Qihoo360) getJSON(ctx context.Context, endpoint string, params map[stri
 	return nil
 }
 
-// postJSON makes POST request and decode JSON response
-func (d *Qihoo360) postJSON(ctx context.Context, endpoint string, body interface{}, result interface{}) error {
-	resp, err := d.request(ctx, "POST", endpoint, body, nil)
-	if err != nil {
-		return fmt.Errorf("request failed: %w", err)
-	}
-	defer resp.Body.Close()
-	
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("HTTP %d: %s", resp.StatusCode, resp.Status)
-	}
-	
-	data, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return fmt.Errorf("read response: %w", err)
-	}
-	
-	if err := json.Unmarshal(data, result); err != nil {
-		return fmt.Errorf("decode response: %w", err)
-	}
-	
-	return nil
-}
-
-// listFiles gets file list from specified path
+// listFiles 获取文件列表
 func (d *Qihoo360) listFiles(ctx context.Context, path string, page, pageSize int) (*ListResponse, error) {
 	params := map[string]string{
 		"path":      path,
@@ -135,19 +131,19 @@ func (d *Qihoo360) listFiles(ctx context.Context, path string, page, pageSize in
 	}
 	
 	var resp ListResponse
-	err := d.getJSON(ctx, "/file/list", params, &resp)
+	err := d.apiCall(ctx, "File.getList", params, &resp)
 	if err != nil {
 		return nil, fmt.Errorf("list files: %w", err)
 	}
 	
-	if resp.Code != 0 {
-		return nil, &APIError{Code: resp.Code, Msg: resp.Msg}
+	if resp.Errno != 0 {
+		return nil, &APIError{Code: resp.Errno, Msg: resp.Errmsg}
 	}
 	
 	return &resp, nil
 }
 
-// searchFiles searches files by keyword
+// searchFiles 搜索文件
 func (d *Qihoo360) searchFiles(ctx context.Context, keyword string, fileCategory, page, pageSize int) (*SearchResponse, error) {
 	params := map[string]string{
 		"key":           keyword,
@@ -157,193 +153,144 @@ func (d *Qihoo360) searchFiles(ctx context.Context, keyword string, fileCategory
 	}
 	
 	var resp SearchResponse
-	err := d.getJSON(ctx, "/file/search", params, &resp)
+	err := d.apiCall(ctx, "File.searchList", params, &resp)
 	if err != nil {
 		return nil, fmt.Errorf("search files: %w", err)
 	}
 	
-	if resp.Code != 0 {
-		return nil, &APIError{Code: resp.Code, Msg: resp.Msg}
+	if resp.Errno != 0 {
+		return nil, &APIError{Code: resp.Errno, Msg: resp.Errmsg}
 	}
 	
 	return &resp, nil
 }
 
-// getDownloadURL gets download URL for a file
+// getDownloadURL 获取文件下载链接
 func (d *Qihoo360) getDownloadURL(ctx context.Context, nid string) (*DownloadResponse, error) {
 	params := map[string]string{
 		"nid": nid,
 	}
 	
 	var resp DownloadResponse
-	err := d.getJSON(ctx, "/file/download", params, &resp)
+	err := d.apiCall(ctx, "Sync.getVerifiedDownLoadUrl", params, &resp)
 	if err != nil {
 		return nil, fmt.Errorf("get download URL: %w", err)
 	}
 	
-	if resp.Code != 0 {
-		return nil, &APIError{Code: resp.Code, Msg: resp.Msg}
+	if resp.Errno != 0 {
+		return nil, &APIError{Code: resp.Errno, Msg: resp.Errmsg}
 	}
 	
 	return &resp, nil
 }
 
-// uploadFile uploads a file to specified path
-func (d *Qihoo360) uploadFile(ctx context.Context, reader io.Reader, fileName, uploadPath string) (*UploadResponse, error) {
-	// Create multipart form
-	body := &bytes.Buffer{}
-	writer := multipart.NewWriter(body)
-	
-	// Add file field
-	part, err := writer.CreateFormFile("file", fileName)
-	if err != nil {
-		return nil, fmt.Errorf("create form file: %w", err)
-	}
-	
-	_, err = io.Copy(part, reader)
-	if err != nil {
-		return nil, fmt.Errorf("copy file data: %w", err)
-	}
-	
-	// Add upload path field
-	writer.WriteField("upload_path", uploadPath)
-	
-	// Close writer
-	err = writer.Close()
-	if err != nil {
-		return nil, fmt.Errorf("close multipart writer: %w", err)
-	}
-	
-	// Make request
-	req, err := http.NewRequestWithContext(ctx, "POST", BaseURL+"/file/upload", body)
-	if err != nil {
-		return nil, fmt.Errorf("create upload request: %w", err)
-	}
-	
-	req.Header.Set("Content-Type", writer.FormDataContentType())
-	req.Header.Set("Authorization", "Bearer "+d.APIKey)
-	req.Header.Set("User-Agent", UserAgent)
-	
-	client := d.buildClient()
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("upload request: %w", err)
-	}
-	defer resp.Body.Close()
-	
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("HTTP %d: %s", resp.StatusCode, resp.Status)
-	}
-	
-	var uploadResp UploadResponse
-	data, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("read upload response: %w", err)
-	}
-	
-	if err := json.Unmarshal(data, &uploadResp); err != nil {
-		return nil, fmt.Errorf("decode upload response: %w", err)
-	}
-	
-	if uploadResp.Code != 0 {
-		return nil, &APIError{Code: uploadResp.Code, Msg: uploadResp.Msg}
-	}
-	
-	return &uploadResp, nil
-}
-
-// createFolder creates a new folder
+// createFolder 创建文件夹
 func (d *Qihoo360) createFolder(ctx context.Context, folderPath string) error {
-	body := map[string]string{
+	params := map[string]string{
 		"fname": folderPath,
 	}
 	
 	var resp CommonResponse
-	err := d.postJSON(ctx, "/make-dir", body, &resp)
+	err := d.apiCall(ctx, "File.mkdir", params, &resp)
 	if err != nil {
 		return fmt.Errorf("create folder: %w", err)
 	}
 	
-	if resp.Code != 0 {
-		return &APIError{Code: resp.Code, Msg: resp.Msg}
+	if resp.Errno != 0 {
+		return &APIError{Code: resp.Errno, Msg: resp.Errmsg}
 	}
 	
 	return nil
 }
 
-// renameFile renames a file or folder
+// renameFile 重命名文件或文件夹
 func (d *Qihoo360) renameFile(ctx context.Context, srcPath, newName string) error {
-	body := map[string]string{
+	params := map[string]string{
 		"src_name": srcPath,
 		"new_name": newName,
 	}
 	
 	var resp CommonResponse
-	err := d.postJSON(ctx, "/file/rename", body, &resp)
+	err := d.apiCall(ctx, "File.rename", params, &resp)
 	if err != nil {
 		return fmt.Errorf("rename file: %w", err)
 	}
 	
-	if resp.Code != 0 {
-		return &APIError{Code: resp.Code, Msg: resp.Msg}
+	if resp.Errno != 0 {
+		return &APIError{Code: resp.Errno, Msg: resp.Errmsg}
 	}
 	
 	return nil
 }
 
-// moveFile moves file(s) to a new location
+// moveFile 移动文件
 func (d *Qihoo360) moveFile(ctx context.Context, srcPaths []string, dstPath string) error {
-	body := map[string]string{
+	params := map[string]string{
 		"src_name": strings.Join(srcPaths, "|"),
 		"new_name": dstPath,
 	}
 	
 	var resp CommonResponse
-	err := d.postJSON(ctx, "/file/move", body, &resp)
+	err := d.apiCall(ctx, "File.move", params, &resp)
 	if err != nil {
 		return fmt.Errorf("move file: %w", err)
 	}
 	
-	if resp.Code != 0 {
-		return &APIError{Code: resp.Code, Msg: resp.Msg}
+	if resp.Errno != 0 {
+		return &APIError{Code: resp.Errno, Msg: resp.Errmsg}
 	}
 	
 	return nil
 }
 
-// deleteFile deletes a file or folder
+// deleteFile 删除文件或文件夹
 func (d *Qihoo360) deleteFile(ctx context.Context, filePath string) error {
-	body := map[string]string{
-		"paths": filePath,
+	params := map[string]string{
+		"fname": filePath,
 	}
 	
 	var resp CommonResponse
-	err := d.postJSON(ctx, "/file/delete", body, &resp)
+	err := d.apiCall(ctx, "File.delete", params, &resp)
 	if err != nil {
 		return fmt.Errorf("delete file: %w", err)
 	}
 	
-	if resp.Code != 0 {
-		return &APIError{Code: resp.Code, Msg: resp.Msg}
+	if resp.Errno != 0 {
+		return &APIError{Code: resp.Errno, Msg: resp.Errmsg}
 	}
 	
 	return nil
+}
+
+// shareFiles 生成分享链接
+func (d *Qihoo360) shareFiles(ctx context.Context, paths string) (*ShareResponse, error) {
+	params := map[string]string{
+		"paths": paths,
+	}
+	
+	var resp ShareResponse
+	err := d.apiCall(ctx, "Share.preShare", params, &resp)
+	if err != nil {
+		return nil, fmt.Errorf("share files: %w", err)
+	}
+	
+	if resp.Errno != 0 {
+		return nil, &APIError{Code: resp.Errno, Msg: resp.Errmsg}
+	}
+	
+	return &resp, nil
 }
 
 // fileItemToObj converts FileItem to model.Obj
 func (d *Qihoo360) fileItemToObj(item FileItem) model.Obj {
 	obj := &model.Object{
+		ID:       item.NID,
 		Name:     item.Name,
 		Size:     item.Size,
 		Modified: toTime(item.Mtime),
+		Ctime:    toTime(item.Ctime),
 		IsFolder: item.Type == 1 || item.IsDir,
-	}
-	
-	// Store NID in the path for later use
-	if item.Path != "" {
-		obj.Path = item.Path
-	} else {
-		obj.Path = item.NID
+		Path:     item.Path,
 	}
 	
 	return obj
@@ -355,7 +302,7 @@ func (d *Qihoo360) getNIDFromPath(ctx context.Context, path string) (string, err
 		return "root", nil
 	}
 	
-	// Try to search for the file first
+	// 尝试从路径中解析文件名进行搜索
 	parts := strings.Split(strings.Trim(path, "/"), "/")
 	if len(parts) == 0 {
 		return "root", nil
@@ -367,7 +314,7 @@ func (d *Qihoo360) getNIDFromPath(ctx context.Context, path string) (string, err
 		return "", fmt.Errorf("search for file NID: %w", err)
 	}
 	
-	// Find the exact match
+	// 查找精确匹配
 	for _, item := range resp.Data.List {
 		if item.Path == path || item.Name == fileName {
 			return item.NID, nil

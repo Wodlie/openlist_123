@@ -8,10 +8,10 @@ import (
 type FileItem struct {
 	NID        string `json:"nid"`         // 文件唯一标识
 	Name       string `json:"name"`        // 文件名
-	Size       int64  `json:"size"`        // 文件大小
-	Type       int    `json:"type"`        // 文件类型：1=文件夹，0=文件
-	Ctime      int64  `json:"ctime"`       // 创建时间戳
-	Mtime      int64  `json:"mtime"`       // 修改时间戳
+	Size       int64  `json:"count_size,string"` // 文件大小（字符串格式需要转换）
+	Type       int    `json:"type,string"` // 文件类型：1=文件夹，0=文件
+	Ctime      int64  `json:"create_time,string"` // 创建时间戳（字符串格式需要转换）
+	Mtime      int64  `json:"modify_time,string"` // 修改时间戳（字符串格式需要转换）
 	Path       string `json:"path"`        // 文件路径
 	ParentNID  string `json:"parent_nid"`  // 父目录NID
 	IsDir      bool   `json:"is_dir"`      // 是否为目录
@@ -19,10 +19,10 @@ type FileItem struct {
 
 // ListResponse represents the response from file list API
 type ListResponse struct {
-	Code int    `json:"code"`
-	Msg  string `json:"msg"`
-	Data struct {
-		List []FileItem `json:"list"`
+	Errno  int    `json:"errno"`
+	Errmsg string `json:"errmsg"`
+	Data   struct {
+		List []FileItem `json:"node_list"`
 		Page struct {
 			Page     int `json:"page"`
 			PageSize int `json:"page_size"`
@@ -33,10 +33,10 @@ type ListResponse struct {
 
 // SearchResponse represents the response from file search API
 type SearchResponse struct {
-	Code int    `json:"code"`
-	Msg  string `json:"msg"`
-	Data struct {
-		List []FileItem `json:"list"`
+	Errno  int    `json:"errno"`
+	Errmsg string `json:"errmsg"`
+	Data   struct {
+		List []FileItem `json:"node_list"`
 		Page struct {
 			Page     int `json:"page"`
 			PageSize int `json:"page_size"`
@@ -47,9 +47,9 @@ type SearchResponse struct {
 
 // UploadResponse represents the response from file upload API
 type UploadResponse struct {
-	Code int    `json:"code"`
-	Msg  string `json:"msg"`
-	Data struct {
+	Errno  int    `json:"errno"`
+	Errmsg string `json:"errmsg"`
+	Data   struct {
 		NID  string `json:"nid"`
 		Name string `json:"name"`
 		Path string `json:"path"`
@@ -59,9 +59,9 @@ type UploadResponse struct {
 
 // DownloadResponse represents the response from file download API
 type DownloadResponse struct {
-	Code int    `json:"code"`
-	Msg  string `json:"msg"`
-	Data struct {
+	Errno  int    `json:"errno"`
+	Errmsg string `json:"errmsg"`
+	Data   struct {
 		DownloadURL string `json:"download_url"`
 		FileName    string `json:"file_name"`
 		Size        int64  `json:"size"`
@@ -70,9 +70,9 @@ type DownloadResponse struct {
 
 // UserInfoResponse represents the response from user info API
 type UserInfoResponse struct {
-	Code int    `json:"code"`
-	Msg  string `json:"msg"`
-	Data struct {
+	Errno  int    `json:"errno"`
+	Errmsg string `json:"errmsg"`
+	Data   struct {
 		UserID   string `json:"user_id"`
 		UserName string `json:"user_name"`
 		Avatar   string `json:"avatar"`
@@ -84,17 +84,31 @@ type UserInfoResponse struct {
 	} `json:"data"`
 }
 
+// ShareResponse represents the response from share API
+type ShareResponse struct {
+	Errno  int    `json:"errno"`
+	Errmsg string `json:"errmsg"`
+	Data   struct {
+		Share struct {
+			URL      string `json:"url"`
+			Password string `json:"password"`
+			ShortURL string `json:"shorturl"`
+			QRCode   string `json:"qrcode"`
+		} `json:"share"`
+	} `json:"data"`
+}
+
 // CommonResponse represents a common API response
 type CommonResponse struct {
-	Code int    `json:"code"`
-	Msg  string `json:"msg"`
-	Data interface{} `json:"data,omitempty"`
+	Errno  int    `json:"errno"`
+	Errmsg string `json:"errmsg"`
+	Data   interface{} `json:"data,omitempty"`
 }
 
 // APIError represents an API error
 type APIError struct {
-	Code int    `json:"code"`
-	Msg  string `json:"msg"`
+	Code int    `json:"errno"`
+	Msg  string `json:"errmsg"`
 }
 
 func (e *APIError) Error() string {
