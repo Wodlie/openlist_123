@@ -52,6 +52,7 @@ import (
 	_ "github.com/OpenListTeam/OpenList/v4/drivers/openlist_share"
 	_ "github.com/OpenListTeam/OpenList/v4/drivers/pikpak"
 	_ "github.com/OpenListTeam/OpenList/v4/drivers/pikpak_share"
+	_ "github.com/OpenListTeam/OpenList/v4/drivers/qihoo360"
 	_ "github.com/OpenListTeam/OpenList/v4/drivers/quark_open"
 	_ "github.com/OpenListTeam/OpenList/v4/drivers/quark_uc"
 	_ "github.com/OpenListTeam/OpenList/v4/drivers/quark_uc_tv"
