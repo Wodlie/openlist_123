@@ -1,6 +1,7 @@
 package qihoo360
 
 import (
+	"strconv"
 	"time"
 )
 
@@ -115,10 +116,29 @@ func (e *APIError) Error() string {
 	return e.Msg
 }
 
-// toTime converts timestamp to time.Time
-func toTime(timestamp int64) time.Time {
-	if timestamp == 0 {
+// toTime converts timestamp string to time.Time
+func toTime(timestamp string) time.Time {
+	if timestamp == "" {
 		return time.Time{}
 	}
-	return time.Unix(timestamp, 0)
+	
+	// Try parsing as Unix timestamp (seconds)
+	if unixTime, err := strconv.ParseInt(timestamp, 10, 64); err == nil {
+		return time.Unix(unixTime, 0)
+	}
+	
+	// Try parsing common date formats
+	formats := []string{
+		"2006-01-02 15:04:05",
+		"2006-01-02T15:04:05Z",
+		"2006-01-02T15:04:05.000Z",
+	}
+	
+	for _, format := range formats {
+		if t, err := time.Parse(format, timestamp); err == nil {
+			return t
+		}
+	}
+	
+	return time.Time{}
 }

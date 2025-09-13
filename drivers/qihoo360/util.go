@@ -1,19 +1,16 @@
 package qihoo360
 
 import (
-	"bytes"
 	"context"
 	"crypto/md5"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
-	"mime/multipart"
 	"net/http"
 	"net/url"
 	"sort"
-	"strconv"
 	"strings"
-	"time"
 
 	"github.com/OpenListTeam/OpenList/v4/internal/model"
 )
@@ -322,31 +319,4 @@ func (d *Qihoo360) getNIDFromPath(ctx context.Context, path string) (string, err
 	}
 	
 	return "", fmt.Errorf("file not found: %s", path)
-}
-
-// toTime converts timestamp string to time.Time
-func toTime(timestamp string) time.Time {
-	if timestamp == "" {
-		return time.Time{}
-	}
-	
-	// Try parsing as Unix timestamp (seconds)
-	if unixTime, err := strconv.ParseInt(timestamp, 10, 64); err == nil {
-		return time.Unix(unixTime, 0)
-	}
-	
-	// Try parsing common date formats
-	formats := []string{
-		"2006-01-02 15:04:05",
-		"2006-01-02T15:04:05Z",
-		"2006-01-02T15:04:05.000Z",
-	}
-	
-	for _, format := range formats {
-		if t, err := time.Parse(format, timestamp); err == nil {
-			return t
-		}
-	}
-	
-	return time.Time{}
 }
