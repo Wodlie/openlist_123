@@ -200,27 +200,41 @@ type SyncClosers struct {
 var _ SyncClosersIF = (*SyncClosers)(nil)
 
 func (c *SyncClosers) AcquireReference() bool {
-	ref := atomic.AddInt32(&c.ref, 1)
-	if ref > 0 {
-		// log.Debugf("SyncClosers.AcquireReference %p,ref=%d\n", c, ref)
-		return true
+	for {
+		ref := atomic.LoadInt32(&c.ref)
+		if ref < 0 {
+			return false
+		}
+		newRef := ref + 1
+		if atomic.CompareAndSwapInt32(&c.ref, ref, newRef) {
+			// log.Debugf("AcquireReference %p: %d", c, newRef)
+			return true
+		}
 	}
-	atomic.StoreInt32(&c.ref, math.MinInt16)
-	return false
 }
+
+const closersClosed = math.MinInt16
 
 func (c *SyncClosers) Close() error {
 	ref := atomic.AddInt32(&c.ref, -1)
-	if ref < -1 {
-		atomic.StoreInt32(&c.ref, math.MinInt16)
-		return nil
-	}
-	// log.Debugf("SyncClosers.Close %p,ref=%d\n", c, ref+1)
 	if ref > 0 {
+		// log.Debugf("ReleaseReference %p: %d", c, ref)
 		return nil
 	}
-	atomic.StoreInt32(&c.ref, math.MinInt16)
 
+	if ref < -1 {
+		atomic.StoreInt32(&c.ref, closersClosed)
+		return nil
+	}
+
+	// Attempt to acquire FinalClose permission.
+	// At this point, ref must be 0 or -1. We try to atomically change it to the closersClosed state.
+	// Only the first successful goroutine gets the cleanup permission.
+	if !atomic.CompareAndSwapInt32(&c.ref, ref, closersClosed) {
+		return nil
+	}
+
+	// log.Debugf("FinalClose %p", c)
 	var errs []error
 	for _, closer := range c.closers {
 		if closer != nil {

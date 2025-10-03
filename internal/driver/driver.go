@@ -9,8 +9,8 @@ import (
 type Driver interface {
 	Meta
 	Reader
-	//Writer
-	//Other
+	// Writer
+	// Other
 }
 
 type Meta interface {
@@ -208,6 +208,11 @@ type ArchiveDecompressResult interface {
 	// return only the newly created folder when args.PutIntoNewDir is true
 	// return errs.NotImplement to use internal archive tools to decompress
 	ArchiveDecompress(ctx context.Context, srcObj, dstDir model.Obj, args model.ArchiveDecompressArgs) ([]model.Obj, error)
+}
+
+type WithDetails interface {
+	// GetDetails get storage details (total space, free space, etc.)
+	GetDetails(ctx context.Context) (*model.StorageDetails, error)
 }
 
 type Reference interface {
