@@ -113,7 +113,10 @@ func (d *Qihoo360) request(method string, params map[string]string, result inter
 		params["sign"] = generateSign(params)
 	}
 
-	log.Debugf("Request params: %+v", params)
+	// Log only method name to avoid leaking sensitive data
+	if method, ok := params["method"]; ok {
+		log.Debugf("Request method: %s", method)
+	}
 
 	res, err := base.RestyClient.R().
 		SetFormData(params).
