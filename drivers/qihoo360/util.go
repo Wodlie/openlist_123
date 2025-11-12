@@ -97,16 +97,17 @@ func (d *Qihoo360) getAuth() (*AuthResp, error) {
 }
 
 func (d *Qihoo360) request(method string, params map[string]string, result interface{}) ([]byte, error) {
-	// Get auth if not already authenticated
-	if d.authInfo == nil || time.Now().Unix() >= d.authExpire-300 {
-		_, err := d.getAuth()
-		if err != nil {
-			return nil, err
-		}
-	}
-
 	// Add auth params if method is specified
+	// Skip auth check if method is empty (used during initial authentication)
 	if method != "" {
+		// Get auth if not already authenticated
+		if d.authInfo == nil || time.Now().Unix() >= d.authExpire-300 {
+			_, err := d.getAuth()
+			if err != nil {
+				return nil, err
+			}
+		}
+		
 		params["method"] = method
 		params["access_token"] = d.authInfo.Data.AccessToken
 		params["qid"] = d.authInfo.Data.Qid
