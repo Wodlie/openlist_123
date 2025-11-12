@@ -58,6 +58,7 @@ import (
 	_ "github.com/OpenListTeam/OpenList/v4/drivers/quark_open"
 	_ "github.com/OpenListTeam/OpenList/v4/drivers/quark_uc"
 	_ "github.com/OpenListTeam/OpenList/v4/drivers/quark_uc_tv"
+	_ "github.com/OpenListTeam/OpenList/v4/drivers/qihoo360"
 	_ "github.com/OpenListTeam/OpenList/v4/drivers/s3"
 	_ "github.com/OpenListTeam/OpenList/v4/drivers/seafile"
 	_ "github.com/OpenListTeam/OpenList/v4/drivers/sftp"
