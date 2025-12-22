@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"strconv"
-	"sync"
 	"time"
 
 	"github.com/OpenListTeam/OpenList/v4/internal/conf"
@@ -24,9 +23,15 @@ type StorageResp struct {
 	MountDetails *model.StorageDetails `json:"mount_details,omitempty"`
 }
 
-func makeStorageResp(c *gin.Context, storages []model.Storage) []*StorageResp {
+type detailWithIndex struct {
+	idx int
+	val *model.StorageDetails
+}
+
+func makeStorageResp(ctx *gin.Context, storages []model.Storage) []*StorageResp {
 	ret := make([]*StorageResp, len(storages))
-	var wg sync.WaitGroup
+	detailsChan := make(chan detailWithIndex, len(storages))
+	workerCount := 0
 	for i, s := range storages {
 		ret[i] = &StorageResp{
 			Storage:      s,
@@ -43,22 +48,26 @@ func makeStorageResp(c *gin.Context, storages []model.Storage) []*StorageResp {
 		if !ok {
 			continue
 		}
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			ctx, cancel := context.WithTimeout(c, time.Second*3)
-			defer cancel()
-			details, err := op.GetStorageDetails(ctx, d)
-			if err != nil {
-				if !errors.Is(err, errs.NotImplement) {
-					log.Errorf("failed get %s details: %+v", s.MountPath, err)
+		workerCount++
+		go func(dri driver.Driver, idx int) {
+			details, e := op.GetStorageDetails(ctx, dri)
+			if e != nil {
+				if !errors.Is(e, errs.NotImplement) && !errors.Is(e, errs.StorageNotInit) {
+					log.Errorf("failed get %s details: %+v", dri.GetStorage().MountPath, e)
 				}
-				return
 			}
-			ret[i].MountDetails = details
-		}()
+			detailsChan <- detailWithIndex{idx: idx, val: details}
+		}(d, i)
 	}
-	wg.Wait()
+	for workerCount > 0 {
+		select {
+		case r := <-detailsChan:
+			ret[r.idx].MountDetails = r.val
+			workerCount--
+		case <-time.After(time.Second * 3):
+			workerCount = 0
+		}
+	}
 	return ret
 }
 
@@ -175,7 +184,7 @@ func LoadAllStorages(c *gin.Context) {
 		common.ErrorResp(c, err, 500, true)
 		return
 	}
-	conf.StoragesLoaded = false
+	conf.ResetStoragesLoadSignal()
 	go func(storages []model.Storage) {
 		for _, storage := range storages {
 			storageDriver, err := op.GetStorageByMountPath(storage.MountPath)
@@ -195,7 +204,7 @@ func LoadAllStorages(c *gin.Context) {
 			log.Infof("success load storage: [%s], driver: [%s]",
 				storage.MountPath, storage.Driver)
 		}
-		conf.StoragesLoaded = true
+		conf.SendStoragesLoadedSignal()
 	}(storages)
 	common.SuccessResp(c)
 }

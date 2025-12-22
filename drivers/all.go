@@ -13,6 +13,7 @@ import (
 	_ "github.com/OpenListTeam/OpenList/v4/drivers/189_tv"
 	_ "github.com/OpenListTeam/OpenList/v4/drivers/189pc"
 	_ "github.com/OpenListTeam/OpenList/v4/drivers/alias"
+	_ "github.com/OpenListTeam/OpenList/v4/drivers/alist_v3"
 	_ "github.com/OpenListTeam/OpenList/v4/drivers/aliyundrive"
 	_ "github.com/OpenListTeam/OpenList/v4/drivers/aliyundrive_open"
 	_ "github.com/OpenListTeam/OpenList/v4/drivers/aliyundrive_share"
@@ -36,6 +37,7 @@ import (
 	_ "github.com/OpenListTeam/OpenList/v4/drivers/google_drive"
 	_ "github.com/OpenListTeam/OpenList/v4/drivers/google_photo"
 	_ "github.com/OpenListTeam/OpenList/v4/drivers/halalcloud"
+	_ "github.com/OpenListTeam/OpenList/v4/drivers/halalcloud_open"
 	_ "github.com/OpenListTeam/OpenList/v4/drivers/ilanzou"
 	_ "github.com/OpenListTeam/OpenList/v4/drivers/ipfs_api"
 	_ "github.com/OpenListTeam/OpenList/v4/drivers/kodbox"
@@ -55,6 +57,7 @@ import (
 	_ "github.com/OpenListTeam/OpenList/v4/drivers/openlist_share"
 	_ "github.com/OpenListTeam/OpenList/v4/drivers/pikpak"
 	_ "github.com/OpenListTeam/OpenList/v4/drivers/pikpak_share"
+	_ "github.com/OpenListTeam/OpenList/v4/drivers/proton_drive"
 	_ "github.com/OpenListTeam/OpenList/v4/drivers/quark_open"
 	_ "github.com/OpenListTeam/OpenList/v4/drivers/quark_uc"
 	_ "github.com/OpenListTeam/OpenList/v4/drivers/quark_uc_tv"
@@ -75,11 +78,11 @@ import (
 	_ "github.com/OpenListTeam/OpenList/v4/drivers/webdav"
 	_ "github.com/OpenListTeam/OpenList/v4/drivers/weiyun"
 	_ "github.com/OpenListTeam/OpenList/v4/drivers/wopan"
+	_ "github.com/OpenListTeam/OpenList/v4/drivers/wps"
 	_ "github.com/OpenListTeam/OpenList/v4/drivers/yandex_disk"
 )
 
 // All do nothing,just for import
 // same as _ import
 func All() {
-
 }

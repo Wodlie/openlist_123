@@ -77,7 +77,6 @@ func (d *AliyundriveOpen) GetRoot(ctx context.Context) (model.Obj, error) {
 		ID:       d.RootFolderID,
 		Path:     "/",
 		Name:     "root",
-		Size:     0,
 		Modified: d.Modified,
 		IsFolder: true,
 	}, nil
@@ -299,10 +298,7 @@ func (d *AliyundriveOpen) GetDetails(ctx context.Context) (*model.StorageDetails
 	total := utils.Json.Get(res, "personal_space_info", "total_size").ToUint64()
 	used := utils.Json.Get(res, "personal_space_info", "used_size").ToUint64()
 	return &model.StorageDetails{
-		DiskUsage: model.DiskUsage{
-			TotalSpace: total,
-			FreeSpace:  total - used,
-		},
+		DiskUsage: driver.DiskUsageFromUsedAndTotal(used, total),
 	}, nil
 }
 
