@@ -5,7 +5,7 @@ import (
 	"errors"
 	stdpath "path"
 	"strings"
-	"sync"
+	"time"
 
 	"github.com/OpenListTeam/OpenList/v4/internal/driver"
 	"github.com/OpenListTeam/OpenList/v4/internal/errs"
@@ -16,17 +16,24 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-func (d *Alias) listRoot(ctx context.Context, withDetails bool) []model.Obj {
+type detailWithIndex struct {
+	idx int
+	val *model.StorageDetails
+}
+
+func (d *Alias) listRoot(ctx context.Context, withDetails, refresh bool) []model.Obj {
 	var objs []model.Obj
-	var wg sync.WaitGroup
+	detailsChan := make(chan detailWithIndex, len(d.pathMap))
+	workerCount := 0
 	for _, k := range d.rootOrder {
 		obj := model.Object{
 			Name:     k,
+			Path:     "/" + k,
 			IsFolder: true,
 			Modified: d.Modified,
 		}
 		idx := len(objs)
-		objs = append(objs, &obj)
+		objs = append(objs, model.ObjAddMask(&obj, model.Virtual))
 		v := d.pathMap[k]
 		if !withDetails || len(v) != 1 {
 			continue
@@ -46,20 +53,26 @@ func (d *Alias) listRoot(ctx context.Context, withDetails bool) []model.Obj {
 				DriverName:     remoteDriver.Config().Name,
 			},
 		}
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			details, e := op.GetStorageDetails(ctx, remoteDriver)
+		workerCount++
+		go func(dri driver.Driver, i int) {
+			details, e := op.GetStorageDetails(ctx, dri, refresh)
 			if e != nil {
-				if !errors.Is(e, errs.NotImplement) {
-					log.Errorf("failed get %s storage details: %+v", remoteDriver.GetStorage().MountPath, e)
+				if !errors.Is(e, errs.NotImplement) && !errors.Is(e, errs.StorageNotInit) {
+					log.Errorf("failed get %s storage details: %+v", dri.GetStorage().MountPath, e)
 				}
-				return
 			}
-			objs[idx].(*model.ObjStorageDetails).StorageDetails = details
-		}()
+			detailsChan <- detailWithIndex{idx: i, val: details}
+		}(remoteDriver, idx)
 	}
-	wg.Wait()
+	for workerCount > 0 {
+		select {
+		case r := <-detailsChan:
+			objs[r.idx].(*model.ObjStorageDetails).StorageDetails = r.val
+			workerCount--
+		case <-time.After(time.Second):
+			workerCount = 0
+		}
+	}
 	return objs
 }
 

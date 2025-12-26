@@ -242,10 +242,10 @@ do:
 		"origin":        "https://www.123pan.com",
 		"referer":       "https://www.123pan.com/",
 		"authorization": "Bearer " + d.AccessToken,
-		"user-agent": "123pan/v2.4.7(Android_10.0;Oppo)",
-		"platform": "android",
-		"app-version": "69",
-	    "x-app-version": "2.4.7",
+		"platform":      d.Platform,
+		"user-agent":    "123pan/v2.4.7(Android_10.0;Oppo)",
+		"app-version":   "69",
+	  "x-app-version": "2.4.7",
 		//"user-agent":    base.UserAgent,
 	})
 	if callback != nil {
