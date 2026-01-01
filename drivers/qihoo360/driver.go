@@ -3,6 +3,7 @@ package qihoo360
 import (
 	"context"
 	"fmt"
+	"net/http"
 
 	"github.com/OpenListTeam/OpenList/v4/internal/driver"
 	"github.com/OpenListTeam/OpenList/v4/internal/errs"
@@ -40,9 +41,9 @@ func (d *Qihoo360) List(ctx context.Context, dir model.Obj, args model.ListArgs)
 	path := dir.GetPath()
 	if path == "" {
 		path = d.RootFolderPath
-	}
-	if path == "" {
-		path = "/"
+		if path == "" {
+			path = "/"
+		}
 	}
 
 	files, err := d.getFiles(path, 0, 100)
@@ -56,9 +57,28 @@ func (d *Qihoo360) List(ctx context.Context, dir model.Obj, args model.ListArgs)
 }
 
 func (d *Qihoo360) Link(ctx context.Context, file model.Obj, args model.LinkArgs) (*model.Link, error) {
-	// File.getLink API is not documented in ecs_mcp_server
-	// Return not implemented as requested
-	return nil, errs.NotImplement
+	// Get file ID (nid)
+	nid := file.GetID()
+	if nid == "" {
+		return nil, fmt.Errorf("file id is empty")
+	}
+
+	// Get download URL from API
+	downloadUrl, err := d.getDownloadUrl(nid)
+	if err != nil {
+		return nil, err
+	}
+
+	if downloadUrl == "" {
+		return nil, fmt.Errorf("download url is empty")
+	}
+
+	return &model.Link{
+		URL: downloadUrl,
+		Header: http.Header{
+			"User-Agent": []string{"curl/8.5.0"},
+		},
+	}, nil
 }
 
 func (d *Qihoo360) MakeDir(ctx context.Context, parentDir model.Obj, dirName string) (model.Obj, error) {

@@ -15,6 +15,7 @@ type File struct {
 	CountSize    string `json:"count_size"`
 	CreateTimeTS string `json:"create_time"`
 	ModifyTimeTS string `json:"modify_time"`
+	Path         string `json:"-"` // Full path, not from API
 }
 
 func (f File) GetName() string {
@@ -45,7 +46,7 @@ func (f File) GetID() string {
 }
 
 func (f File) GetPath() string {
-	return ""
+	return f.Path
 }
 
 func (f File) GetHash() utils.HashInfo {
@@ -69,11 +70,20 @@ type AuthResp struct {
 		AccessTokenExpire int64  `json:"access_token_expire"`
 		Qid               string `json:"qid"`
 	} `json:"data"`
+	TraceId string `json:"trace_id"`
 }
 
 type CommonResp struct {
 	Errno  int    `json:"errno"`
 	Errmsg string `json:"errmsg"`
+}
+
+type DownloadUrlResp struct {
+	Errno  int    `json:"errno"`
+	Errmsg string `json:"errmsg"`
+	Data   struct {
+		DownloadUrl string `json:"downloadUrl"`
+	} `json:"data"`
 }
 
 var _ model.Obj = (*File)(nil)

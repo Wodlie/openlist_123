@@ -69,21 +69,26 @@ func (d *Qihoo360) getAuth() (*AuthResp, error) {
 	}
 
 	params := map[string]string{
-		"method":        "Auth.token",
+		"method":        "Oauth.getAccessTokenByApiKey",
 		"client_id":     ClientID,
 		"client_secret": ClientSecret,
-		"qid":           d.APIKey,
-		"grant_type":    "client_credentials",
+		"api_key":       d.APIKey,
+		"grant_type":    "authorization_code",
 	}
 
-	sign := generateSign(params)
-	params["sign"] = sign
-
+	// Build URL with query parameters (no sign needed for auth request)
 	var resp AuthResp
-	_, err := d.request("", params, &resp)
+	req := base.RestyClient.R().SetResult(&resp)
+	for k, v := range params {
+		req.SetQueryParam(k, v)
+	}
+
+	res, err := req.Get(ApiUrl)
 	if err != nil {
 		return nil, err
 	}
+
+	log.Debugf("Auth Response: %s", res.String())
 
 	if resp.Errno != 0 {
 		return nil, fmt.Errorf("auth failed: %s", resp.Errmsg)
@@ -97,40 +102,69 @@ func (d *Qihoo360) getAuth() (*AuthResp, error) {
 }
 
 func (d *Qihoo360) request(method string, params map[string]string, result interface{}) ([]byte, error) {
-	// Add auth params if method is specified
-	// Skip auth check if method is empty (used during initial authentication)
-	if method != "" {
-		// Get auth if not already authenticated
-		if d.authInfo == nil || time.Now().Unix() >= d.authExpire-300 {
-			_, err := d.getAuth()
-			if err != nil {
-				return nil, err
+	// Get auth if not already authenticated
+	if d.authInfo == nil || time.Now().Unix() >= d.authExpire-300 {
+		_, err := d.getAuth()
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	params["method"] = method
+	params["access_token"] = d.authInfo.Data.AccessToken
+	params["qid"] = d.authInfo.Data.Qid
+	params["sign"] = generateSign(params)
+
+	log.Debugf("Request method: %s", method)
+
+	// File.getList uses GET, others use POST
+	var err error
+
+	if method == "File.getList" || method == "Sync.getVerifiedDownLoadUrl" {
+		// GET request: params in query string
+		_, err = base.RestyClient.R().
+			SetQueryParams(params).
+			SetResult(result).
+			SetHeader("Access-Token", d.authInfo.Data.AccessToken).
+			Get(ApiUrl)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		// POST request: basic params in query, additional in form
+		queryParams := map[string]string{
+			"method":       method,
+			"access_token": d.authInfo.Data.AccessToken,
+			"qid":          d.authInfo.Data.Qid,
+			"sign":         params["sign"],
+		}
+
+		formData := make(map[string]string)
+		for k, v := range params {
+			if k != "method" && k != "access_token" && k != "qid" && k != "sign" {
+				formData[k] = v
 			}
 		}
-		
-		params["method"] = method
-		params["access_token"] = d.authInfo.Data.AccessToken
-		params["qid"] = d.authInfo.Data.Qid
-		params["sign"] = generateSign(params)
-	}
 
-	// Log only method name to avoid leaking sensitive data
-	if method, ok := params["method"]; ok {
-		log.Debugf("Request method: %s", method)
+		_, err = base.RestyClient.R().
+			SetQueryParams(queryParams).
+			SetFormData(formData).
+			SetResult(result).
+			SetHeader("Access-Token", d.authInfo.Data.AccessToken).
+			SetHeader("Content-Type", "application/x-www-form-urlencoded").
+			Post(ApiUrl)
+		if err != nil {
+			return nil, err
+		}
 	}
-
-	res, err := base.RestyClient.R().
-		SetFormData(params).
-		SetResult(result).
-		Post(ApiUrl)
 
 	if err != nil {
 		return nil, err
 	}
 
-	log.Debugf("Response: %s", res.String())
+	log.Debugf("Response data received")
 
-	return res.Body(), nil
+	return nil, nil
 }
 
 func (d *Qihoo360) getFiles(path string, page int, pageSize int) ([]File, error) {
@@ -150,5 +184,38 @@ func (d *Qihoo360) getFiles(path string, page int, pageSize int) ([]File, error)
 		return nil, fmt.Errorf("get files failed: %s", resp.Errmsg)
 	}
 
+	// Set full path for each file
+	for i := range resp.Data.NodeList {
+		name := resp.Data.NodeList[i].Name
+		// Remove leading slash from name if present
+		if len(name) > 0 && name[0] == '/' {
+			name = name[1:]
+		}
+		// Construct full path
+		if path == "/" {
+			resp.Data.NodeList[i].Path = "/" + name
+		} else {
+			resp.Data.NodeList[i].Path = path + "/" + name
+		}
+	}
+
 	return resp.Data.NodeList, nil
+}
+
+func (d *Qihoo360) getDownloadUrl(nid string) (string, error) {
+	params := map[string]string{
+		"nid": nid,
+	}
+
+	var resp DownloadUrlResp
+	_, err := d.request("Sync.getVerifiedDownLoadUrl", params, &resp)
+	if err != nil {
+		return "", err
+	}
+
+	if resp.Errno != 0 {
+		return "", fmt.Errorf("get download url failed: %s", resp.Errmsg)
+	}
+
+	return resp.Data.DownloadUrl, nil
 }
