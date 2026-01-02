@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"net/url"
+	pathpkg "path"
 	"sort"
 	"strings"
 	"time"
@@ -20,21 +21,27 @@ const (
 	SecretKey    = "e7b24b112a44fdd9ee93bdf998c6ca0e"
 )
 
-// phpUrlEncode encodes a string in PHP URL encoding style
+// phpUrlEncode encodes a string in PHP/JS style used by SDK
+// JavaScript's encodeURIComponent keeps - _ . ! ~ * ' ( ) unencoded,
+// but the sign function encodes them again
 func phpUrlEncode(str string) string {
+	// First, do standard encoding but keep certain chars
 	encoded := url.QueryEscape(str)
-	// Replace %20 with +
-	encoded = strings.ReplaceAll(encoded, "%20", "+")
-	// Handle other characters
+	// url.QueryEscape already encodes most things, but we need to ensure
+	// these specific characters are encoded as the JS does
 	replacer := strings.NewReplacer(
 		"!", "%21",
 		"'", "%27",
 		"(", "%28",
 		")", "%29",
 		"*", "%2A",
+		",", "%2C",
 		"~", "%7E",
 	)
-	return replacer.Replace(encoded)
+	encoded = replacer.Replace(encoded)
+	// %20 should be + (last step)
+	encoded = strings.ReplaceAll(encoded, "%20", "+")
+	return encoded
 }
 
 // generateSign generates MD5 signature for API request
@@ -101,7 +108,7 @@ func (d *Qihoo360) getAuth() (*AuthResp, error) {
 	return &resp, nil
 }
 
-func (d *Qihoo360) request(method string, params map[string]string, result interface{}) ([]byte, error) {
+func (d *Qihoo360) request(method string, params map[string]string, result interface{}, excluded ...string) ([]byte, error) {
 	// Get auth if not already authenticated
 	if d.authInfo == nil || time.Now().Unix() >= d.authExpire-300 {
 		_, err := d.getAuth()
@@ -110,20 +117,51 @@ func (d *Qihoo360) request(method string, params map[string]string, result inter
 		}
 	}
 
-	params["method"] = method
-	params["access_token"] = d.authInfo.Data.AccessToken
-	params["qid"] = d.authInfo.Data.Qid
-	params["sign"] = generateSign(params)
+	// Build excluded params map
+	excludedMap := make(map[string]bool)
+	if len(excluded) > 0 {
+		for _, key := range excluded {
+			excludedMap[key] = true
+		}
+	}
+
+	// Build params for sign (excluding specified params)
+	signParams := map[string]string{
+		"method":       method,
+		"access_token": d.authInfo.Data.AccessToken,
+		"qid":          d.authInfo.Data.Qid,
+	}
+
+	// Add params to sign if not excluded
+	for k, v := range params {
+		if !excludedMap[k] {
+			signParams[k] = v
+		}
+	}
+
+	// Generate sign
+	sign := generateSign(signParams)
 
 	log.Debugf("Request method: %s", method)
 
-	// File.getList uses GET, others use POST
+	// File.getList, Sync.getVerifiedDownLoadUrl, and Sync.getUploadFileAddr use GET
 	var err error
 
-	if method == "File.getList" || method == "Sync.getVerifiedDownLoadUrl" {
+	if method == "File.getList" || method == "Sync.getVerifiedDownLoadUrl" || method == "Sync.getUploadFileAddr" {
 		// GET request: params in query string
+		allParams := map[string]string{
+			"method":       method,
+			"access_token": d.authInfo.Data.AccessToken,
+			"qid":          d.authInfo.Data.Qid,
+			"sign":         sign,
+		}
+		for k, v := range params {
+			if !excludedMap[k] {
+				allParams[k] = v
+			}
+		}
 		_, err = base.RestyClient.R().
-			SetQueryParams(params).
+			SetQueryParams(allParams).
 			SetResult(result).
 			SetHeader("Access-Token", d.authInfo.Data.AccessToken).
 			Get(ApiUrl)
@@ -131,19 +169,17 @@ func (d *Qihoo360) request(method string, params map[string]string, result inter
 			return nil, err
 		}
 	} else {
-		// POST request: basic params in query, additional in form
+		// POST request: basic params in query, all params in form
 		queryParams := map[string]string{
 			"method":       method,
 			"access_token": d.authInfo.Data.AccessToken,
 			"qid":          d.authInfo.Data.Qid,
-			"sign":         params["sign"],
+			"sign":         sign,
 		}
 
 		formData := make(map[string]string)
 		for k, v := range params {
-			if k != "method" && k != "access_token" && k != "qid" && k != "sign" {
-				formData[k] = v
-			}
+			formData[k] = v
 		}
 
 		_, err = base.RestyClient.R().
@@ -184,19 +220,26 @@ func (d *Qihoo360) getFiles(path string, page int, pageSize int) ([]File, error)
 		return nil, fmt.Errorf("get files failed: %s", resp.Errmsg)
 	}
 
-	// Set full path for each file
+	// Normalize name display and full path for each file/dir
 	for i := range resp.Data.NodeList {
-		name := resp.Data.NodeList[i].Name
-		// Remove leading slash from name if present
-		if len(name) > 0 && name[0] == '/' {
-			name = name[1:]
-		}
+		rawName := resp.Data.NodeList[i].Name
+		// Trim leading slash and trailing slash for dir name
+		trimmed := strings.TrimPrefix(rawName, "/")
+		trimmed = strings.TrimSuffix(trimmed, "/")
+		base := pathpkg.Base(trimmed)
+		resp.Data.NodeList[i].Name = base
+
 		// Construct full path
+		var fullPath string
 		if path == "/" {
-			resp.Data.NodeList[i].Path = "/" + name
+			fullPath = "/" + base
 		} else {
-			resp.Data.NodeList[i].Path = path + "/" + name
+			fullPath = path + base
 		}
+		if resp.Data.NodeList[i].Type == "1" && !strings.HasSuffix(fullPath, "/") {
+			fullPath += "/"
+		}
+		resp.Data.NodeList[i].Path = fullPath
 	}
 
 	return resp.Data.NodeList, nil
@@ -218,4 +261,42 @@ func (d *Qihoo360) getDownloadUrl(nid string) (string, error) {
 	}
 
 	return resp.Data.DownloadUrl, nil
+}
+
+func (d *Qihoo360) getUploadAddr(fname string, fsize int64, fhash string, fctime, fmtime int64) (*UploadAddrResp, error) {
+	// Build all query parameters
+	params := map[string]string{
+		"owner_qid": d.authInfo.Data.Qid,
+		"fname":     fname,
+		"fsize":     fmt.Sprintf("%d", fsize),
+		"fctime":    fmt.Sprintf("%d", fctime),
+		"fmtime":    fmt.Sprintf("%d", fmtime),
+		"fhash":     fhash,
+		"qid":       d.authInfo.Data.Qid,
+		"fattr":     "0",
+		"token":     d.authInfo.Data.Token,
+		"tk":        "",
+		"devtype":   "ecs_openapi",
+	}
+
+	// Calculate sign using only specific parameters (per SDK)
+	signParams := map[string]string{
+		"fhash":        fhash,
+		"qid":          d.authInfo.Data.Qid,
+		"method":       "Sync.getUploadFileAddr",
+		"fname":        fname,
+		"fsize":        fmt.Sprintf("%d", fsize),
+		"access_token": d.authInfo.Data.AccessToken,
+	}
+	params["sign"] = generateSign(signParams)
+
+	var resp UploadAddrResp
+	_, err := d.request("Sync.getUploadFileAddr", params, &resp)
+	if err != nil {
+		return nil, err
+	}
+	if resp.Errno != 0 {
+		return nil, fmt.Errorf("get upload addr failed: %s", resp.Errmsg)
+	}
+	return &resp, nil
 }

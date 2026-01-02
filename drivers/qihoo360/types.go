@@ -78,11 +78,74 @@ type CommonResp struct {
 	Errmsg string `json:"errmsg"`
 }
 
+type UploadAddrResp struct {
+	Errno  int    `json:"errno"`
+	Errmsg string `json:"errmsg"`
+	Data   struct {
+		HTTP        interface{} `json:"http"`     // can be string or null
+		IsHttps     int         `json:"is_https"` // 0 or 1, not boolean
+		Tk          interface{} `json:"tk"`       // can be string or null
+		Addr2       string      `json:"addr_2"`
+		NodeInfo    []File      `json:"node_info"` // returned when file exists (instant upload)
+		AutoCommit  int         `json:"autoCommit"`
+		FileHash    string      `json:"fhash"`
+		FileName    string      `json:"fname"`
+		FileSize    string      `json:"fsize"`
+		IsCreateDir bool        `json:"is_createdir"`
+	} `json:"data"`
+}
+
+type BlockInfo struct {
+	BHash   string `json:"bhash"`
+	BIdx    int    `json:"bidx"`
+	BOffset int64  `json:"boffset"`
+	BSize   int64  `json:"bsize"`
+	Q       string `json:"q,omitempty"`
+	T       string `json:"t,omitempty"`
+	Token   string `json:"token,omitempty"`
+	Tid     string `json:"tid,omitempty"`
+}
+
+type PreloadResp struct {
+	Errno  int    `json:"errno"`
+	Errmsg string `json:"errmsg"`
+	Data   struct {
+		BlockInfo []BlockInfo `json:"block_info"`
+		Tid       string      `json:"tid"`
+		Tk        string      `json:"tk"`
+		HTTP      string      `json:"http"`
+		Addr2     string      `json:"addr_2"`
+		IsHttps   bool        `json:"is_https"`
+	} `json:"data"`
+}
+
 type DownloadUrlResp struct {
 	Errno  int    `json:"errno"`
 	Errmsg string `json:"errmsg"`
 	Data   struct {
 		DownloadUrl string `json:"downloadUrl"`
+	} `json:"data"`
+}
+
+type CommitResp struct {
+	Errno  int    `json:"errno"`
+	Errmsg string `json:"errmsg"`
+	Data   struct {
+		Nid        string `json:"nid"`
+		Name       string `json:"fname"`
+		Size       int64  `json:"fsize"`
+		CreateTime int64  `json:"fctime"`
+		ModifyTime int64  `json:"fmtime"`
+		Tk         string `json:"tk"`
+		AutoCommit int    `json:"autoCommit"` // 0 or 1
+	} `json:"data"`
+}
+
+type AddFileResp struct {
+	Errno  int    `json:"errno"`
+	Errmsg string `json:"errmsg"`
+	Data   struct {
+		File File `json:"file"`
 	} `json:"data"`
 }
 
