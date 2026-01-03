@@ -160,11 +160,14 @@ func (d *Qihoo360) request(method string, params map[string]string, result inter
 				allParams[k] = v
 			}
 		}
-		_, err = base.RestyClient.R().
+		req := base.RestyClient.R().
 			SetQueryParams(allParams).
 			SetResult(result).
-			SetHeader("Access-Token", d.authInfo.Data.AccessToken).
-			Get(ApiUrl)
+			SetHeader("Access-Token", d.authInfo.Data.AccessToken)
+		if method == "Sync.getVerifiedDownLoadUrl" {
+			req.SetHeader("User-Agent", "yunpan_mcp_server")
+		}
+		_, err = req.Get(ApiUrl)
 		if err != nil {
 			return nil, err
 		}
