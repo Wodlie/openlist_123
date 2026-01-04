@@ -650,4 +650,28 @@ func (d *Qihoo360) addFileToApi(tk string) (*AddFileResp, error) {
 	return &resp, nil
 }
 
+func (d *Qihoo360) GetDetails(ctx context.Context) (*model.StorageDetails, error) {
+	userDetail, err := d.getUserDetail()
+	if err != nil {
+		return nil, err
+	}
+
+	total, err := strconv.ParseUint(userDetail.Data.TotalSize, 10, 64)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse total size: %w", err)
+	}
+
+	used, err := strconv.ParseUint(userDetail.Data.UsedSize, 10, 64)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse used size: %w", err)
+	}
+
+	return &model.StorageDetails{
+		DiskUsage: model.DiskUsage{
+			TotalSpace: total,
+			FreeSpace:  total - used,
+		},
+	}, nil
+}
+
 var _ driver.Driver = (*Qihoo360)(nil)

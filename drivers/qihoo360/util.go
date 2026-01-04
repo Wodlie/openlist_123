@@ -303,3 +303,20 @@ func (d *Qihoo360) getUploadAddr(fname string, fsize int64, fhash string, fctime
 	}
 	return &resp, nil
 }
+
+func (d *Qihoo360) getUserDetail() (*UserDetailResp, error) {
+	params := map[string]string{}
+
+	var resp UserDetailResp
+	_, err := d.request("User.getUserDetail", params, &resp)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.Errno != 0 {
+		return nil, fmt.Errorf("get user detail failed: %s", resp.Errmsg)
+	}
+
+	return &resp, nil
+}
+
