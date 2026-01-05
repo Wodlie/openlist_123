@@ -153,14 +153,14 @@ type UserDetailResp struct {
 	Errno  int    `json:"errno"`
 	Errmsg string `json:"errmsg"`
 	Data   struct {
-		Name          string `json:"name"`
-		TotalSize     string `json:"total_size"`
-		UsedSize      string `json:"used_size"`
-		AvailableSize uint64 `json:"available_size"`
-		IsVip         int    `json:"is_vip"`
-		VipDesc       string `json:"vip_desc"`
-		ExpireDay     int    `json:"expire_day"`
-		Expire        string `json:"expire"`
+		Name         string `json:"name"`
+		TotalSize    string `json:"total_size"`
+		UsedSize     string `json:"used_size"`
+		AvailableSize int64 `json:"available_size"`
+		IsVip        bool   `json:"is_vip"`
+		VipDesc      string `json:"vip_desc"`
+		ExpireDay    int    `json:"expire_day"`
+		Expire       string `json:"expire"`
 	} `json:"data"`
 }
 

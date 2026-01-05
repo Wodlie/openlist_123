@@ -95,6 +95,31 @@ func (d *Qihoo360) Link(ctx context.Context, file model.Obj, args model.LinkArgs
 	}, nil
 }
 
+func (d *Qihoo360) GetDetails(ctx context.Context) (*model.StorageDetails, error) {
+	userDetail, err := d.getUserDetail()
+	if err != nil {
+		return nil, err
+	}
+
+	// Parse total and used sizes from strings to uint64
+	totalSize := uint64(0)
+	usedSize := uint64(0)
+
+	if total, err := strconv.ParseUint(userDetail.Data.TotalSize, 10, 64); err == nil {
+		totalSize = total
+	}
+	if used, err := strconv.ParseUint(userDetail.Data.UsedSize, 10, 64); err == nil {
+		usedSize = used
+	}
+
+	return &model.StorageDetails{
+		DiskUsage: model.DiskUsage{
+			TotalSpace: totalSize,
+			FreeSpace:  totalSize - usedSize,
+		},
+	}, nil
+}
+
 func (d *Qihoo360) MakeDir(ctx context.Context, parentDir model.Obj, dirName string) (model.Obj, error) {
 	path := parentDir.GetPath()
 	if path == "" {
@@ -648,30 +673,6 @@ func (d *Qihoo360) addFileToApi(tk string) (*AddFileResp, error) {
 	}
 
 	return &resp, nil
-}
-
-func (d *Qihoo360) GetDetails(ctx context.Context) (*model.StorageDetails, error) {
-	userDetail, err := d.getUserDetail()
-	if err != nil {
-		return nil, err
-	}
-
-	total, err := strconv.ParseUint(userDetail.Data.TotalSize, 10, 64)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse total size: %w", err)
-	}
-
-	used, err := strconv.ParseUint(userDetail.Data.UsedSize, 10, 64)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse used size: %w", err)
-	}
-
-	return &model.StorageDetails{
-		DiskUsage: model.DiskUsage{
-			TotalSpace: total,
-			FreeSpace:  total - used,
-		},
-	}, nil
 }
 
 var _ driver.Driver = (*Qihoo360)(nil)

@@ -70,8 +70,8 @@ func generateSign(params map[string]string) string {
 }
 
 func (d *Qihoo360) getAuth() (*AuthResp, error) {
-	// Check if we have cached auth and it's not expired
-	if d.authInfo != nil && time.Now().Unix() < d.authExpire-300 {
+	// Check if we have cached auth and it's not expired (with 5 min buffer)
+	if d.authInfo != nil && d.authExpire > 0 && time.Now().Unix() < d.authExpire-300 {
 		return d.authInfo, nil
 	}
 
@@ -92,29 +92,45 @@ func (d *Qihoo360) getAuth() (*AuthResp, error) {
 
 	res, err := req.Get(ApiUrl)
 	if err != nil {
+		// Clear auth cache on error to force re-authentication next time
+		d.authInfo = nil
+		d.authExpire = 0
 		return nil, err
 	}
 
 	log.Debugf("Auth Response: %s", res.String())
 
 	if resp.Errno != 0 {
+		// Clear auth cache on error to force re-authentication next time
+		d.authInfo = nil
+		d.authExpire = 0
 		return nil, fmt.Errorf("auth failed: %s", resp.Errmsg)
 	}
 
 	// Cache auth info
 	d.authInfo = &resp
-	d.authExpire = time.Now().Unix() + resp.Data.AccessTokenExpire
+	if resp.Data.AccessTokenExpire > 0 {
+		d.authExpire = time.Now().Unix() + resp.Data.AccessTokenExpire
+	} else {
+		// Default to 1 hour if not provided
+		d.authExpire = time.Now().Unix() + 3600
+	}
 
 	return &resp, nil
 }
 
 func (d *Qihoo360) request(method string, params map[string]string, result interface{}, excluded ...string) ([]byte, error) {
-	// Get auth if not already authenticated
-	if d.authInfo == nil || time.Now().Unix() >= d.authExpire-300 {
+	// Get auth if not already authenticated or expired
+	if d.authInfo == nil || d.authExpire <= 0 || time.Now().Unix() >= d.authExpire-300 {
 		_, err := d.getAuth()
 		if err != nil {
 			return nil, err
 		}
+	}
+
+	// Ensure authInfo is set before proceeding
+	if d.authInfo == nil {
+		return nil, fmt.Errorf("authentication failed: no auth info")
 	}
 
 	// Build excluded params map
@@ -147,7 +163,7 @@ func (d *Qihoo360) request(method string, params map[string]string, result inter
 	// File.getList, Sync.getVerifiedDownLoadUrl, and Sync.getUploadFileAddr use GET
 	var err error
 
-	if method == "File.getList" || method == "Sync.getVerifiedDownLoadUrl" || method == "Sync.getUploadFileAddr" {
+	if method == "File.getList" || method == "Sync.getVerifiedDownLoadUrl" || method == "Sync.getUploadFileAddr" || method == "User.getUserDetail" {
 		// GET request: params in query string
 		allParams := map[string]string{
 			"method":       method,
@@ -197,11 +213,40 @@ func (d *Qihoo360) request(method string, params map[string]string, result inter
 		}
 	}
 
-	if err != nil {
-		return nil, err
-	}
-
 	log.Debugf("Response data received")
+
+	// Check if we got an authentication error from the API
+	// If errno is -1 or -2, it usually means token is invalid/expired
+	if resp, ok := result.(*FileListResp); ok {
+		if resp.Errno == -1 || resp.Errno == -2 {
+			log.Debugf("Auth token expired (errno: %d), clearing cache", resp.Errno)
+			d.authInfo = nil
+			d.authExpire = 0
+			// Retry once with fresh auth
+			return d.request(method, params, result, excluded...)
+		}
+	} else if resp, ok := result.(*DownloadUrlResp); ok {
+		if resp.Errno == -1 || resp.Errno == -2 {
+			log.Debugf("Auth token expired (errno: %d), clearing cache", resp.Errno)
+			d.authInfo = nil
+			d.authExpire = 0
+			return d.request(method, params, result, excluded...)
+		}
+	} else if resp, ok := result.(*UserDetailResp); ok {
+		if resp.Errno == -1 || resp.Errno == -2 {
+			log.Debugf("Auth token expired (errno: %d), clearing cache", resp.Errno)
+			d.authInfo = nil
+			d.authExpire = 0
+			return d.request(method, params, result, excluded...)
+		}
+	} else if resp, ok := result.(*CommonResp); ok {
+		if resp.Errno == -1 || resp.Errno == -2 {
+			log.Debugf("Auth token expired (errno: %d), clearing cache", resp.Errno)
+			d.authInfo = nil
+			d.authExpire = 0
+			return d.request(method, params, result, excluded...)
+		}
+	}
 
 	return nil, nil
 }
@@ -319,4 +364,3 @@ func (d *Qihoo360) getUserDetail() (*UserDetailResp, error) {
 
 	return &resp, nil
 }
-

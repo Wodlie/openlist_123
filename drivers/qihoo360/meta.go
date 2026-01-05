@@ -6,8 +6,8 @@ import (
 )
 
 type Addition struct {
-	APIKey string `json:"api_key" required:"true" help:"360 AI Cloud API Key (yunpan_ prefix)"`
 	driver.RootPath
+	APIKey string `json:"api_key" required:"true" help:"360 AI Cloud API Key (yunpan_ prefix)"`
 }
 
 var config = driver.Config{
