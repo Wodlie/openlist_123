@@ -101,21 +101,21 @@ func (d *Qihoo360) GetDetails(ctx context.Context) (*model.StorageDetails, error
 		return nil, err
 	}
 
-	// Parse total and used sizes from strings to uint64
-	totalSize := uint64(0)
-	usedSize := uint64(0)
+	// Parse total and used sizes from strings to int64
+	totalSize := int64(0)
+	usedSize := int64(0)
 
-	if total, err := strconv.ParseUint(userDetail.Data.TotalSize, 10, 64); err == nil {
+	if total, err := strconv.ParseInt(userDetail.Data.TotalSize, 10, 64); err == nil {
 		totalSize = total
 	}
-	if used, err := strconv.ParseUint(userDetail.Data.UsedSize, 10, 64); err == nil {
+	if used, err := strconv.ParseInt(userDetail.Data.UsedSize, 10, 64); err == nil {
 		usedSize = used
 	}
 
 	return &model.StorageDetails{
 		DiskUsage: model.DiskUsage{
 			TotalSpace: totalSize,
-			FreeSpace:  totalSize - usedSize,
+			UsedSpace:  usedSize,
 		},
 	}, nil
 }

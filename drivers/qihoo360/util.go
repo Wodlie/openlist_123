@@ -109,8 +109,9 @@ func (d *Qihoo360) getAuth() (*AuthResp, error) {
 
 	// Cache auth info
 	d.authInfo = &resp
+	// access_token_expire is already a Unix timestamp, not a duration
 	if resp.Data.AccessTokenExpire > 0 {
-		d.authExpire = time.Now().Unix() + resp.Data.AccessTokenExpire
+		d.authExpire = resp.Data.AccessTokenExpire
 	} else {
 		// Default to 1 hour if not provided
 		d.authExpire = time.Now().Unix() + 3600
@@ -120,6 +121,16 @@ func (d *Qihoo360) getAuth() (*AuthResp, error) {
 }
 
 func (d *Qihoo360) request(method string, params map[string]string, result interface{}, excluded ...string) ([]byte, error) {
+	return d.requestWithRetry(method, params, result, 0, excluded...)
+}
+
+func (d *Qihoo360) requestWithRetry(method string, params map[string]string, result interface{}, retryCount int, excluded ...string) ([]byte, error) {
+	// Prevent infinite retry loops
+	const maxRetries = 2
+	if retryCount >= maxRetries {
+		return nil, fmt.Errorf("max retries (%d) exceeded for method %s", maxRetries, method)
+	}
+	
 	// Get auth if not already authenticated or expired
 	if d.authInfo == nil || d.authExpire <= 0 || time.Now().Unix() >= d.authExpire-300 {
 		_, err := d.getAuth()
@@ -219,32 +230,32 @@ func (d *Qihoo360) request(method string, params map[string]string, result inter
 	// If errno is -1 or -2, it usually means token is invalid/expired
 	if resp, ok := result.(*FileListResp); ok {
 		if resp.Errno == -1 || resp.Errno == -2 {
-			log.Debugf("Auth token expired (errno: %d), clearing cache", resp.Errno)
+			log.Debugf("Auth token expired (errno: %d), clearing cache and retrying (attempt %d)", resp.Errno, retryCount+1)
 			d.authInfo = nil
 			d.authExpire = 0
-			// Retry once with fresh auth
-			return d.request(method, params, result, excluded...)
+			// Retry with fresh auth
+			return d.requestWithRetry(method, params, result, retryCount+1, excluded...)
 		}
 	} else if resp, ok := result.(*DownloadUrlResp); ok {
 		if resp.Errno == -1 || resp.Errno == -2 {
-			log.Debugf("Auth token expired (errno: %d), clearing cache", resp.Errno)
+			log.Debugf("Auth token expired (errno: %d), clearing cache and retrying (attempt %d)", resp.Errno, retryCount+1)
 			d.authInfo = nil
 			d.authExpire = 0
-			return d.request(method, params, result, excluded...)
+			return d.requestWithRetry(method, params, result, retryCount+1, excluded...)
 		}
 	} else if resp, ok := result.(*UserDetailResp); ok {
 		if resp.Errno == -1 || resp.Errno == -2 {
-			log.Debugf("Auth token expired (errno: %d), clearing cache", resp.Errno)
+			log.Debugf("Auth token expired (errno: %d), clearing cache and retrying (attempt %d)", resp.Errno, retryCount+1)
 			d.authInfo = nil
 			d.authExpire = 0
-			return d.request(method, params, result, excluded...)
+			return d.requestWithRetry(method, params, result, retryCount+1, excluded...)
 		}
 	} else if resp, ok := result.(*CommonResp); ok {
 		if resp.Errno == -1 || resp.Errno == -2 {
-			log.Debugf("Auth token expired (errno: %d), clearing cache", resp.Errno)
+			log.Debugf("Auth token expired (errno: %d), clearing cache and retrying (attempt %d)", resp.Errno, retryCount+1)
 			d.authInfo = nil
 			d.authExpire = 0
-			return d.request(method, params, result, excluded...)
+			return d.requestWithRetry(method, params, result, retryCount+1, excluded...)
 		}
 	}
 
