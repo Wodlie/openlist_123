@@ -31,4 +31,5 @@ output/
 /public/dist/*
 /!public/dist/README.md
 
-.VSCodeCounter
+.VSCodeCounter/OpenList
+/OpenList
