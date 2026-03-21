@@ -36,7 +36,6 @@ func (d *Qihoo360) GetAddition() driver.Additional {
 }
 
 func (d *Qihoo360) Init(ctx context.Context) error {
-	// Test authentication
 	_, err := d.getAuth()
 	return err
 }
@@ -54,8 +53,6 @@ func (d *Qihoo360) List(ctx context.Context, dir model.Obj, args model.ListArgs)
 	if path == "" {
 		path = "/"
 	}
-
-	// Ensure directory paths end with / (required by API for non-root paths)
 	if path != "/" && !strings.HasSuffix(path, "/") {
 		path += "/"
 	}
@@ -71,13 +68,10 @@ func (d *Qihoo360) List(ctx context.Context, dir model.Obj, args model.ListArgs)
 }
 
 func (d *Qihoo360) Link(ctx context.Context, file model.Obj, args model.LinkArgs) (*model.Link, error) {
-	// Get file ID (nid)
 	nid := file.GetID()
 	if nid == "" {
 		return nil, fmt.Errorf("file id is empty")
 	}
-
-	// Get download URL from API
 	downloadUrl, err := d.getDownloadUrl(nid)
 	if err != nil {
 		return nil, err
@@ -97,8 +91,6 @@ func (d *Qihoo360) GetDetails(ctx context.Context) (*model.StorageDetails, error
 	if err != nil {
 		return nil, err
 	}
-
-	// Parse total and used sizes from strings to int64
 	totalSize := int64(0)
 	usedSize := int64(0)
 

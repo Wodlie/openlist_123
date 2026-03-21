@@ -21,14 +21,8 @@ const (
 	SecretKey    = "e7b24b112a44fdd9ee93bdf998c6ca0e"
 )
 
-// phpUrlEncode encodes a string in PHP/JS style used by SDK
-// JavaScript's encodeURIComponent keeps - _ . ! ~ * ' ( ) unencoded,
-// but the sign function encodes them again
 func phpUrlEncode(str string) string {
-	// First, do standard encoding but keep certain chars
 	encoded := url.QueryEscape(str)
-	// url.QueryEscape already encodes most things, but we need to ensure
-	// these specific characters are encoded as the JS does
 	replacer := strings.NewReplacer(
 		"!", "%21",
 		"'", "%27",
@@ -39,38 +33,28 @@ func phpUrlEncode(str string) string {
 		"~", "%7E",
 	)
 	encoded = replacer.Replace(encoded)
-	// %20 should be + (last step)
 	encoded = strings.ReplaceAll(encoded, "%20", "+")
 	return encoded
 }
 
-// generateSign generates MD5 signature for API request
 func generateSign(params map[string]string) string {
-	// Sort keys alphabetically
 	keys := make([]string, 0, len(params))
 	for k := range params {
 		keys = append(keys, k)
 	}
 	sort.Strings(keys)
-
-	// Build key=encodedValue string
 	pairs := make([]string, 0, len(keys))
 	for _, k := range keys {
 		encodedValue := phpUrlEncode(params[k])
 		pairs = append(pairs, fmt.Sprintf("%s=%s", k, encodedValue))
 	}
 	str := strings.Join(pairs, "&")
-
-	// Append secret key
 	str += SecretKey
-
-	// Calculate MD5
 	hash := md5.Sum([]byte(str))
 	return hex.EncodeToString(hash[:])
 }
 
 func (d *Qihoo360) getAuth() (*AuthResp, error) {
-	// Check if we have cached auth and it's not expired (with 5 min buffer)
 	if d.authInfo != nil && d.authExpire > 0 && time.Now().Unix() < d.authExpire-300 {
 		return d.authInfo, nil
 	}
@@ -83,7 +67,6 @@ func (d *Qihoo360) getAuth() (*AuthResp, error) {
 		"grant_type":    "authorization_code",
 	}
 
-	// Build URL with query parameters (no sign needed for auth request)
 	var resp AuthResp
 	req := base.RestyClient.R().SetResult(&resp)
 	for k, v := range params {
@@ -92,7 +75,6 @@ func (d *Qihoo360) getAuth() (*AuthResp, error) {
 
 	res, err := req.Get(ApiUrl)
 	if err != nil {
-		// Clear auth cache on error to force re-authentication next time
 		d.authInfo = nil
 		d.authExpire = 0
 		return nil, err
@@ -101,19 +83,14 @@ func (d *Qihoo360) getAuth() (*AuthResp, error) {
 	log.Debugf("Auth Response: %s", res.String())
 
 	if resp.Errno != 0 {
-		// Clear auth cache on error to force re-authentication next time
 		d.authInfo = nil
 		d.authExpire = 0
 		return nil, fmt.Errorf("auth failed: %s", resp.Errmsg)
 	}
-
-	// Cache auth info
 	d.authInfo = &resp
-	// access_token_expire is already a Unix timestamp, not a duration
 	if resp.Data.AccessTokenExpire > 0 {
 		d.authExpire = resp.Data.AccessTokenExpire
 	} else {
-		// Default to 1 hour if not provided
 		d.authExpire = time.Now().Unix() + 3600
 	}
 
@@ -125,57 +102,40 @@ func (d *Qihoo360) request(method string, params map[string]string, result inter
 }
 
 func (d *Qihoo360) requestWithRetry(method string, params map[string]string, result interface{}, retryCount int, excluded ...string) ([]byte, error) {
-	// Prevent infinite retry loops
 	const maxRetries = 2
 	if retryCount >= maxRetries {
 		return nil, fmt.Errorf("max retries (%d) exceeded for method %s", maxRetries, method)
 	}
-
-	// Get auth if not already authenticated or expired
 	if d.authInfo == nil || d.authExpire <= 0 || time.Now().Unix() >= d.authExpire-300 {
 		_, err := d.getAuth()
 		if err != nil {
 			return nil, err
 		}
 	}
-
-	// Ensure authInfo is set before proceeding
 	if d.authInfo == nil {
 		return nil, fmt.Errorf("authentication failed: no auth info")
 	}
-
-	// Build excluded params map
 	excludedMap := make(map[string]bool)
-	if len(excluded) > 0 {
-		for _, key := range excluded {
-			excludedMap[key] = true
-		}
+	for _, key := range excluded {
+		excludedMap[key] = true
 	}
-
-	// Build params for sign (excluding specified params)
 	signParams := map[string]string{
 		"method":       method,
 		"access_token": d.authInfo.Data.AccessToken,
 		"qid":          d.authInfo.Data.Qid,
 	}
-
-	// Add params to sign if not excluded
 	for k, v := range params {
 		if !excludedMap[k] {
 			signParams[k] = v
 		}
 	}
-
-	// Generate sign
 	sign := generateSign(signParams)
 
 	log.Debugf("Request method: %s", method)
 
-	// File.getList, Sync.getVerifiedDownLoadUrl, and Sync.getUploadFileAddr use GET
 	var err error
 
 	if method == "File.getList" || method == "Sync.getVerifiedDownLoadUrl" || method == "Sync.getUploadFileAddr" || method == "User.getUserDetail" {
-		// GET request: params in query string
 		allParams := map[string]string{
 			"method":       method,
 			"access_token": d.authInfo.Data.AccessToken,
@@ -199,7 +159,6 @@ func (d *Qihoo360) requestWithRetry(method string, params map[string]string, res
 			return nil, err
 		}
 	} else {
-		// POST request: basic params in query, all params in form
 		queryParams := map[string]string{
 			"method":       method,
 			"access_token": d.authInfo.Data.AccessToken,
@@ -225,15 +184,11 @@ func (d *Qihoo360) requestWithRetry(method string, params map[string]string, res
 	}
 
 	log.Debugf("Response data received")
-
-	// Check if we got an authentication error from the API
-	// If errno is -1 or -2, it usually means token is invalid/expired
 	if resp, ok := result.(*FileListResp); ok {
 		if resp.Errno == -1 || resp.Errno == -2 {
 			log.Debugf("Auth token expired (errno: %d), clearing cache and retrying (attempt %d)", resp.Errno, retryCount+1)
 			d.authInfo = nil
 			d.authExpire = 0
-			// Retry with fresh auth
 			return d.requestWithRetry(method, params, result, retryCount+1, excluded...)
 		}
 	} else if resp, ok := result.(*DownloadUrlResp); ok {
@@ -279,16 +234,12 @@ func (d *Qihoo360) getFiles(path string, page int, pageSize int) ([]File, error)
 		return nil, fmt.Errorf("get files failed: %s", resp.Errmsg)
 	}
 
-	// Normalize name display and full path for each file/dir
 	for i := range resp.Data.NodeList {
 		rawName := resp.Data.NodeList[i].Name
-		// Trim leading slash and trailing slash for dir name
 		trimmed := strings.TrimPrefix(rawName, "/")
 		trimmed = strings.TrimSuffix(trimmed, "/")
 		base := pathpkg.Base(trimmed)
 		resp.Data.NodeList[i].Name = base
-
-		// Construct full path
 		var fullPath string
 		if path == "/" {
 			fullPath = "/" + base
