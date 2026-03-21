@@ -1,6 +1,7 @@
 package qihoo360
 
 import (
+	"context"
 	"crypto/md5"
 	"encoding/hex"
 	"fmt"
@@ -325,4 +326,102 @@ func (d *Qihoo360) getUserDetail() (*UserDetailResp, error) {
 	}
 
 	return &resp, nil
+}
+
+func (d *Qihoo360) OfflineDownload(ctx context.Context, downloadURL string, uploadPath string) (string, error) {
+	if uploadPath == "" {
+		uploadPath = "/"
+	}
+	if !strings.HasPrefix(uploadPath, "/") {
+		uploadPath = "/" + uploadPath
+	}
+	if !strings.HasSuffix(uploadPath, "/") {
+		uploadPath += "/"
+	}
+	params := map[string]string{
+		"upload_path": uploadPath,
+		"url":         downloadURL,
+	}
+	var resp SaveFileResp
+	_, err := d.request("MCP.saveFile", params, &resp, "upload_path", "url")
+	if err != nil {
+		return "", err
+	}
+	if resp.Errno != 0 {
+		return "", fmt.Errorf("offline download failed: %s", resp.Errmsg)
+	}
+	if resp.Data.TaskID == "" {
+		return "", fmt.Errorf("offline download failed: empty task id")
+	}
+	return resp.Data.TaskID, nil
+}
+
+func (d *Qihoo360) QueryOfflineTask(ctx context.Context, taskID string) (*QueryTaskRespData, error) {
+	if taskID == "" {
+		return nil, fmt.Errorf("invalid task id")
+	}
+	params := map[string]string{
+		"task_id": taskID,
+	}
+	var resp QueryTaskResp
+	_, err := d.request("MCP.query", params, &resp, "task_id")
+	if err != nil {
+		return nil, err
+	}
+	if resp.Errno != 0 {
+		return nil, fmt.Errorf("query offline task failed: %s", resp.Errmsg)
+	}
+	data := QueryTaskRespData{
+		TaskID:   resp.Data.TaskID,
+		Status:   resp.Data.Status,
+		FilePath: resp.Data.FilePath,
+		FileSize: resp.Data.FileSize,
+		Nid:      resp.Data.Nid,
+		Qid:      resp.Data.Qid,
+		Error:    resp.Data.Error,
+		Progress: resp.Data.Progress,
+	}
+	if data.TaskID == "" {
+		data.TaskID = taskID
+	}
+	if data.Progress <= 0 && data.Status == 2 {
+		data.Progress = 100
+	}
+	return &data, nil
+}
+
+func (d *Qihoo360) DeleteOfflineTasks(ctx context.Context, taskIDs []string) error {
+	if len(taskIDs) == 0 {
+		return nil
+	}
+	var lastErr error
+	for _, taskID := range taskIDs {
+		if taskID == "" {
+			continue
+		}
+		params := map[string]string{
+			"task_id": taskID,
+		}
+		var resp CommonResp
+		_, err := d.request("MCP.cancel", params, &resp, "task_id")
+		if err != nil {
+			lastErr = err
+			continue
+		}
+		if resp.Errno != 0 {
+			lastErr = fmt.Errorf("cancel offline task failed: %s", resp.Errmsg)
+		}
+	}
+	return lastErr
+}
+
+type QueryTaskRespData struct {
+	TaskID   string
+	Status   int
+	FilePath string
+	FileSize int64
+	Nid      string
+	Qid      string
+	Error    string
+	Progress float64
 }

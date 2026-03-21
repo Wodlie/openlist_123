@@ -139,6 +139,7 @@ const (
 	// 123 open offline download
 	Pan123OpenOfflineDownloadCallbackUrl = "123_open_callback_url"
 	Pan123OpenTempDir                    = "123_open_temp_dir"
+	Qihoo360TempDir                      = "qihoo360_temp_dir"
 
 	// ftp
 	FTPPublicHost            = "ftp_public_host"

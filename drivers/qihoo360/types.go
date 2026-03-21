@@ -153,14 +153,37 @@ type UserDetailResp struct {
 	Errno  int    `json:"errno"`
 	Errmsg string `json:"errmsg"`
 	Data   struct {
-		Name         string `json:"name"`
-		TotalSize    string `json:"total_size"`
-		UsedSize     string `json:"used_size"`
-		AvailableSize int64 `json:"available_size"`
-		IsVip        bool   `json:"is_vip"`
-		VipDesc      string `json:"vip_desc"`
-		ExpireDay    int    `json:"expire_day"`
-		Expire       string `json:"expire"`
+		Name          string `json:"name"`
+		TotalSize     string `json:"total_size"`
+		UsedSize      string `json:"used_size"`
+		AvailableSize int64  `json:"available_size"`
+		IsVip         bool   `json:"is_vip"`
+		VipDesc       string `json:"vip_desc"`
+		ExpireDay     int    `json:"expire_day"`
+		Expire        string `json:"expire"`
+	} `json:"data"`
+}
+
+type SaveFileResp struct {
+	Errno  int    `json:"errno"`
+	Errmsg string `json:"errmsg"`
+	Data   struct {
+		TaskID string `json:"task_id"`
+	} `json:"data"`
+}
+
+type QueryTaskResp struct {
+	Errno  int    `json:"errno"`
+	Errmsg string `json:"errmsg"`
+	Data   struct {
+		TaskID   string  `json:"task_id"`
+		Status   int     `json:"status"`
+		FilePath string  `json:"file_path"`
+		FileSize int64   `json:"file_size"`
+		Nid      string  `json:"nid"`
+		Qid      string  `json:"qid"`
+		Error    string  `json:"error"`
+		Progress float64 `json:"progress"`
 	} `json:"data"`
 }
 

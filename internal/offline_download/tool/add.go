@@ -11,6 +11,7 @@ import (
 	_123 "github.com/OpenListTeam/OpenList/v4/drivers/123"
 	_123_open "github.com/OpenListTeam/OpenList/v4/drivers/123_open"
 	"github.com/OpenListTeam/OpenList/v4/drivers/pikpak"
+	"github.com/OpenListTeam/OpenList/v4/drivers/qihoo360"
 	"github.com/OpenListTeam/OpenList/v4/drivers/thunder"
 	"github.com/OpenListTeam/OpenList/v4/drivers/thunder_browser"
 	"github.com/OpenListTeam/OpenList/v4/drivers/thunderx"
@@ -116,6 +117,12 @@ func AddURL(ctx context.Context, args *AddURLArgs) (task.TaskExtensionInfo, erro
 			tempDir = args.DstDirPath
 		} else {
 			tempDir = filepath.Join(setting.GetStr(conf.Pan123TempDir), uid)
+		}
+	case "Qihoo360":
+		if _, ok := storage.(*qihoo360.Qihoo360); ok {
+			tempDir = args.DstDirPath
+		} else {
+			tempDir = filepath.Join(setting.GetStr(conf.Qihoo360TempDir), uid)
 		}
 	case "PikPak":
 		if _, ok := storage.(*pikpak.PikPak); ok {
