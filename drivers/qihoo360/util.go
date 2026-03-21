@@ -130,7 +130,7 @@ func (d *Qihoo360) requestWithRetry(method string, params map[string]string, res
 	if retryCount >= maxRetries {
 		return nil, fmt.Errorf("max retries (%d) exceeded for method %s", maxRetries, method)
 	}
-	
+
 	// Get auth if not already authenticated or expired
 	if d.authInfo == nil || d.authExpire <= 0 || time.Now().Unix() >= d.authExpire-300 {
 		_, err := d.getAuth()
@@ -310,7 +310,7 @@ func (d *Qihoo360) getDownloadUrl(nid string) (string, error) {
 	}
 
 	var resp DownloadUrlResp
-	_, err := d.request("Sync.getVerifiedDownLoadUrl", params, &resp)
+	_, err := d.request("MCP.getDownLoadUrl", params, &resp)
 	if err != nil {
 		return "", err
 	}

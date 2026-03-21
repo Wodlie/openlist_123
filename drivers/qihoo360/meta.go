@@ -13,7 +13,6 @@ type Addition struct {
 var config = driver.Config{
 	Name:        "Qihoo360",
 	LocalSort:   true,
-	OnlyProxy:   true,
 	DefaultRoot: "/",
 }
 

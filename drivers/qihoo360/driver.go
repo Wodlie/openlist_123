@@ -89,9 +89,6 @@ func (d *Qihoo360) Link(ctx context.Context, file model.Obj, args model.LinkArgs
 
 	return &model.Link{
 		URL: downloadUrl,
-		Header: http.Header{
-			"User-Agent": []string{"yunpan_mcp_server"},
-		},
 	}, nil
 }
 
