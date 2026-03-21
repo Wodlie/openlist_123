@@ -7,13 +7,12 @@ import (
 
 type Addition struct {
 	driver.RootPath
-	APIKey string `json:"api_key" required:"true" help:"360 AI Cloud API Key (yunpan_ prefix)"`
+	APIKey string `json:"Api key" required:"true" help:"360 AI Cloud API Key (yunpan_ prefix)"`
 }
 
 var config = driver.Config{
 	Name:        "Qihoo360",
 	LocalSort:   true,
-	OnlyProxy:   true,
 	DefaultRoot: "/",
 }
 
